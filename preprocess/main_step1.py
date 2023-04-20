@@ -18,13 +18,13 @@ def filter_ID_TIME_NULL(src, config, rawdata_path, inputdata_path, sample=False)
         if sample:
             df = df.iloc[: int(len(df) / 1000), :]
 
-        if src == "mimic4":
+        if src == "mimiciv":
             columns_upper(df)
         print("[0] Raw data shape: ", df.shape)
 
         # 1. Remove columns
-        df.drop(columns=table_dict["time_excluded"], inplace=True)
-        df.drop(columns=table_dict["id_excluded"], inplace=True)
+        df.drop(columns=table_dict["time_excluded"], inplace=True, errors='ignore')
+        df.drop(columns=table_dict["id_excluded"], inplace=True, errors='ignore')
         print("[1] Exclude useless columns: ", df.shape)
 
         # 2. Rename columns
@@ -40,19 +40,19 @@ def filter_ID_TIME_NULL(src, config, rawdata_path, inputdata_path, sample=False)
             dict_path = os.path.join(rawdata_path, src, dict_name + ".csv")
             code_dict = pd.read_csv(dict_path)
 
-            if src == "mimic4":
+            if src == "mimiciv":
                 code_dict.columns = map(lambda x: str(x).upper(), code_dict.columns)
             df = name_dict(df, code_dict, column_name)
         print("[3] Map ITEMID into descriptions: ", df.shape)
 
         # Read ICUSTAY
         icu = pd.read_pickle(os.path.join(inputdata_path, f"{src}_cohort.pkl"))
-        if src == "mimic4":
+        if src == "mimiciv":
             columns_upper(icu)
         icu.rename(columns={config["ID"][src]: "ID"}, inplace=True)
 
         # 4. Filter ID and TIME by ICUSTAY's ID and TIME
-        if src in ["mimic3", "mimic4"]:
+        if src in ["mimiciii", "mimiciv"]:
             df = ID_time_filter_mimic(df, icu)
         else:
             df = ID_time_filter_eicu(df, icu)
@@ -242,7 +242,7 @@ def main():
     with open(numeric_path, "r") as numeric_outfile:
         numeric_dict = json.load(numeric_outfile)
 
-    for src in ["mimic3", "eicu", "mimic4"]:
+    for src in ["mimiciii", "eicu", "mimic4"]:
 
         os.makedirs(os.path.join(args.inputdata_path, src), exist_ok=True)
 
@@ -255,7 +255,7 @@ def main():
 
             # 1.Filter ID, TIME, NULL
             df_1st, column_names = filter_ID_TIME_NULL(
-                "mimic3", config, args.rawdata_path, args.inputdata_path, sample=sample
+                "mimiciii", config, args.rawdata_path, args.inputdata_path, sample=sample
             )
             df_temp = df_1st.copy()
 
@@ -314,6 +314,12 @@ def main():
                         df = col_select(df, config, src, table_name)
 
                     if embed_type == "descemb":
+                        print("TEST!!!!")
+                        df = df.iloc[:10]
+                        print(df)
+                        print("TEST!!!!")
+
+                        
                         df = descemb_tokenize(df, table_name)
                         df = df[
                             [
@@ -326,7 +332,18 @@ def main():
                                 "ORDER",
                             ]
                         ]
+                        print(df)
+                        print("(EX) ", tokenizer.decode(df["event_token"].iloc[0]))
                         print("(EX) ", tokenizer.decode(df["event_token"].iloc[1]))
+                        print("(EX) ", tokenizer.decode(df["event_token"].iloc[2]))
+                        print("(EX) ", tokenizer.decode(df["event_token"].iloc[3]))
+                        print("(EX) ", tokenizer.decode(df["event_token"].iloc[4]))
+                        print("(EX) ", tokenizer.decode(df["event_token"].iloc[5]))
+                        print("(EX) ", tokenizer.decode(df["event_token"].iloc[6]))
+                        print("(EX) ", tokenizer.decode(df["event_token"].iloc[7]))
+                        print("(EX) ", tokenizer.decode(df["event_token"].iloc[8]))
+                        print("(EX) ", tokenizer.decode(df["event_token"].iloc[9]))
+                        exit(0)
 
                     elif embed_type == "codeemb":
                         df = buckettize_categorize(

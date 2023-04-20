@@ -1,6 +1,6 @@
 {
     "Table": {
-        "mimic3": [
+        "mimiciii": [
             {
                 "table_name": "LABEVENTS",
                 "time_column": "CHARTTIME",
@@ -27,7 +27,7 @@
                 ]
             },
             {
-                "table_name": "INPUTEVENTS",
+                "table_name": "INPUTEVENTS_CV",
                 "time_column": "CHARTTIME",
                 "table_type": "inf",
                 "time_excluded": [
@@ -127,7 +127,7 @@
         ]
     },
     "selected": {
-        "mimic3": {
+        "mimiciii": {
             "LABEVENTS": {
                 "ID": "ID",
                 "ITEMID": "code",
@@ -142,7 +142,7 @@
                 "DOSE_VAL_RX": "value",
                 "DOSE_UNIT_RX": "uom"
             },
-            "INPUTEVENTS": {
+            "INPUTEVENTS_CV": {
                 "ID": "ID",
                 "ITEMID": "code",
                 "RATE": "value",
@@ -193,12 +193,12 @@
         }
     },
     "DICT_FILE": {
-        "mimic3": {
+        "mimiciii": {
             "LABEVENTS": [
                 "D_LABITEMS",
                 "ITEMID"
             ],
-            "INPUTEVENTS": [
+            "INPUTEVENTS_CV": [
                 "D_ITEMS",
                 "ITEMID"
             ]
@@ -216,7 +216,7 @@
         }
     },
     "ID": {
-        "mimic3": "HADM_ID",
+        "mimiciii": "HADM_ID",
         "eicu": "patientunitstayid",
         "mimic4": "HADM_ID"
     }

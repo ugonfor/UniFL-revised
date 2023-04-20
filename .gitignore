@@ -1,3 +1,6 @@
+train_dataset
+preprocessed_dataset
+
 # Custom Files
 viewer.ipynb
 *.out

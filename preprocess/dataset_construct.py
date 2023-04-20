@@ -15,10 +15,10 @@ def create_MIMIC3_ICU(args):
     timegap = pd.Timedelta(time_gap_hours, unit="h")
     pred_window = pd.Timedelta(pred_window_hours, unit="h")
 
-    patient_path = os.path.join(args.rawdata_path, "mimic3", "PATIENTS.csv")
-    icustay_path = os.path.join(args.rawdata_path, "mimic3", "ICUSTAYS.csv")
-    dx_path = os.path.join(args.rawdata_path, "mimic3", "DIAGNOSES_ICD.csv")
-    ad_path = os.path.join(args.rawdata_path, "mimic3", "ADMISSIONS.csv")
+    patient_path = os.path.join(args.rawdata_path, "mimiciii", "PATIENTS.csv")
+    icustay_path = os.path.join(args.rawdata_path, "mimiciii", "ICUSTAYS.csv")
+    dx_path = os.path.join(args.rawdata_path, "mimiciii", "DIAGNOSES_ICD.csv")
+    ad_path = os.path.join(args.rawdata_path, "mimiciii", "ADMISSIONS.csv")
 
     patients = pd.read_csv(patient_path)
     icus = pd.read_csv(icustay_path)
@@ -35,12 +35,12 @@ def create_MIMIC3_ICU(args):
         temp = temp[temp.LAST_CAREUNIT == "MICU"]
     # ->For MICU
 
-    temp = temp.drop(columns=["ROW_ID"])
+    #temp = temp.drop(columns=["ROW_ID"])
     temp["INTIME"] = pd.to_datetime(temp["INTIME"], infer_datetime_format=True)
     temp["OUTTIME"] = pd.to_datetime(temp["OUTTIME"], infer_datetime_format=True)
 
     patients["DOB"] = pd.to_datetime(patients["DOB"], infer_datetime_format=True)
-    patients = patients.drop(columns=["ROW_ID"])
+    #patients = patients.drop(columns=["ROW_ID"])
 
     small_patients = patients[patients.SUBJECT_ID.isin(temp.SUBJECT_ID)]
     temp = temp.merge(small_patients, on="SUBJECT_ID", how="left")
@@ -169,7 +169,7 @@ def create_MIMIC3_ICU(args):
 
     # diagnosis label
     ccs_dx = pd.read_csv(
-        os.path.join(args.rawdata_path, "mimic3", "ccs_multi_dx_tool_2015.csv")
+        os.path.join(args.rawdata_path, "mimiciii", "ccs_multi_dx_tool_2015.csv")
     )
     ccs_dx["'ICD-9-CM CODE'"] = (
         ccs_dx["'ICD-9-CM CODE'"].str[1:].str[:-1].str.replace(" ", "")
@@ -182,6 +182,8 @@ def create_MIMIC3_ICU(args):
     dx1_list = []
     for idx, dxx in enumerate(cohort["ICD9_CODE"]):
         one_list = []
+        if type(dxx) == float:
+            dxx = [dxx]
         for dx in dxx:
             if dx not in level1.keys():
                 continue
@@ -196,8 +198,8 @@ def create_MIMIC3_ICU(args):
     print("max length: ", np.array(dx1_length).max())
     print("min length: ", np.array(dx1_length).min())
 
-    inputdata_path = os.path.join(args.inputdata_path, "mimic3_cohort.pkl")
-    print(f"The final MIMIC3 cohort pickle is saved at: {inputdata_path}")
+    inputdata_path = os.path.join(args.inputdata_path, "mimiciii_cohort.pkl")
+    print(f"The final mimiciii cohort pickle is saved at: {inputdata_path}")
     cohort.to_pickle(inputdata_path)
 
 
@@ -329,7 +331,7 @@ def create_eICU_ICU(args):
     )
 
     cohort_ei = tempdf.copy().reset_index(drop=True)
-    cohort_ei = eicu_diagnosis_label(cohort_ei)
+    cohort_ei = eicu_diagnosis_label(cohort_ei, args.rawdata_path)
     cohort_ei = cohort_ei[cohort_ei["diagnosis"] != float].reset_index(drop=True)
     cohort_ei = cohort_ei.reset_index(drop=True)
 
@@ -340,7 +342,7 @@ def create_eICU_ICU(args):
 
 def eicu_diagnosis_label(eicu_cohort, rawdata_path):
     ccs_dx = pd.read_csv(
-        os.path.join(rawdata_path, "mimic3", "ccs_multi_dx_tool_2015.csv")
+        os.path.join(rawdata_path, "mimiciii", "ccs_multi_dx_tool_2015.csv")
     )
     ccs_dx["'ICD-9-CM CODE'"] = (
         ccs_dx["'ICD-9-CM CODE'"].str[1:].str[:-1].str.replace(" ", "")
@@ -527,10 +529,10 @@ def create_MIMIC4_ICU(args):
     timegap = pd.Timedelta(time_gap_hours, unit="h")
     pred_window = pd.Timedelta(pred_window_hours, unit="h")
 
-    icu = pd.read_csv(os.path.join(args.rawdata_path, "mimic4", "icustays.csv"))
-    adm = pd.read_csv(os.path.join(args.rawdata_path, "mimic4", "admissions.csv"))
-    pat = pd.read_csv(os.path.join(args.rawdata_path, "mimic4", "patients.csv"))
-    dx = convert_icd_mimic4()
+    icu = pd.read_csv(os.path.join(args.rawdata_path, "mimiciv", "icustays.csv"))
+    adm = pd.read_csv(os.path.join(args.rawdata_path, "mimiciv", "admissions.csv"))
+    pat = pd.read_csv(os.path.join(args.rawdata_path, "mimiciv", "patients.csv"))
+    dx = convert_icd_mimic4(args.rawdata_path)
 
     def columns_upper(df):
         df.columns = [x.upper() for x in df.columns]
@@ -650,7 +652,7 @@ def create_MIMIC4_ICU(args):
 
     # diagnosis label
     ccs_dx = pd.read_csv(
-        os.path.join(args.rawdata_path, "mimic3", "ccs_multi_dx_tool_2015.csv")
+        os.path.join(args.rawdata_path, "mimiciii", "ccs_multi_dx_tool_2015.csv")
     )
     ccs_dx["'ICD-9-CM CODE'"] = (
         ccs_dx["'ICD-9-CM CODE'"].str[1:].str[:-1].str.replace(" ", "")
@@ -681,14 +683,14 @@ def create_MIMIC4_ICU(args):
     print("max length: ", np.array(dx1_length).max())
     print("min length: ", np.array(dx1_length).min())
 
-    inputdata_path = os.path.join(args.inputdata_path, "mimic4_cohort.pkl")
+    inputdata_path = os.path.join(args.inputdata_path, "mimiciv_cohort.pkl")
     print(f"The final MIMIC4 cohort pickle is saved at: {inputdata_path}")
     cohort.to_pickle(inputdata_path)
 
 
 def convert_icd_mimic4(rawdata_path):
     # load dx from MIMIC4
-    src_path = os.path.join(rawdata_path, "mimic4")
+    src_path = os.path.join(rawdata_path, "mimiciv")
     dx = pd.read_csv(os.path.join(src_path, "diagnoses_icd.csv"))
 
     # load mapping from CMS (2018 ver.)
