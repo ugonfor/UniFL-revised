@@ -12,23 +12,16 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-from .federated import federated
+#from .federated import federated
 from .base import base
 
 os.environ["OMP_NUM_THREADS"] = "8"
 
 
 available_srcs = [
-    "mimiciii_mv",
-    "mimiciii_cv",
-    "mimiciv",
-    "eicu_73",
-    "eicu_264",
-    "eicu_420",
-    "eicu_243",
-    "eicu_458",
-    "eicu_338",
-    "eicu_443",
+    "mimiciii",
+    "eicu",
+    "mimiciv"
 ]
 
 
@@ -45,7 +38,7 @@ def get_parser():
     # dataset
     parser.add_argument(
         "--train_type",
-        choices=["single", "federated", "pooled"],
+        choices=["single", "pooled"],
         type=str,
         default="single",
     )
@@ -59,7 +52,7 @@ def get_parser():
         default=available_srcs,
     )
 
-    parser.add_argument("--ratio", choices=["0", "10", "100"], type=str, default="100")
+    parser.add_argument("--ratio", choices=["0", "5"], type=str, default="5")
 
     parser.add_argument(
         "--pred_target",
@@ -115,9 +108,7 @@ def get_parser():
     parser.add_argument("--resume_dir", type=str, default=None)
     return parser
 
-
-if __name__ == "__main__":
-
+def main():
     args = get_parser().parse_args()
     print(args.src_data)
 
@@ -125,12 +116,12 @@ if __name__ == "__main__":
     current_exp = [
         args.train_type,
         args.pred_target,
-        args.algorithm,
         str(args.seed),
         args.eventencoder,
     ]
     os.makedirs(args.save_dir, exist_ok=True)
     args.resume = False
+
     if args.resume_dir is not None:
         os.makedirs(args.resume_dir, exist_ok=True)
         prev_exps = os.listdir(args.resume_dir)
@@ -149,16 +140,18 @@ if __name__ == "__main__":
                 datetime.datetime.today().strftime("%m%d_%H%M"),
                 args.train_type,
                 args.pred_target,
-                args.algorithm,
                 str(args.seed),
                 args.eventencoder,
                 "_".join(args.src_data),
             ]
         )
         os.makedirs(os.path.join(args.save_dir, args.exp_name), exist_ok=True)
-    if args.train_type == "federated":
-        federated(args)
-    elif args.train_type in ["single", "pooled"]:
+
+    if args.train_type in ["single", "pooled"]:
         base(args)
     else:
         raise NotImplementedError()
+    
+
+if __name__ == "__main__":
+    main()

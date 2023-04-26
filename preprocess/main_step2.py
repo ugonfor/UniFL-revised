@@ -444,7 +444,7 @@ def main():
         config = json.load(config_file)
 
     for src in ["mimiciii", "eicu", "mimiciv"]:
-        if os.path.isfile(os.path.join(args.inputdata_path, src, "fold", "fold_100.csv")):
+        if os.path.isfile(os.path.join(args.inputdata_path, src, "fold", "fold_5.csv")):
             continue
         
         os.makedirs(os.path.join(args.inputdata_path, src), exist_ok=True)
@@ -463,7 +463,7 @@ def main():
             end = time.time()
             print(">> Loading {} csv is done... {} [sec]".format(df.shape, end - start))
 
-        if not os.path.isfile(os.path.join(args.inputdata_path, src, "npy", "labels.npy")):
+        if not os.path.isfile(os.path.join(args.inputdata_path, src, "label", "labels.npy")):
             # [2] Convert df to numpy
             dataframe2numpy(df, args.inputdata_path, src)
 
@@ -505,6 +505,7 @@ def main():
 
         mask = np.array(event_count) > 256
         print(f">> {mask.sum()} events are discared ..")
+        breakpoint()
         if save:
             np.save(
                 os.path.join(args.inputdata_path, src, "npy", "inputs_ids.npy"),

@@ -53,7 +53,9 @@ class HierarchicalEHRDataset(torch.utils.data.Dataset):
                 classes=[str(i) for i in range(1, 19)],
             )
             label = mlb.fit_transform(label)
-
+        label = np.array( 
+            list( map(eval, label.tolist()) )
+            )
         self.label = torch.tensor(label, dtype=torch.long)
 
         self.hit_idcs = self.get_fold_indices()
@@ -185,7 +187,7 @@ class HierarchicalEHRDataset(torch.utils.data.Dataset):
         fname = str(self.hit_idcs[index]) + ".npy"
 
         input_ids = np.load(
-            os.path.join(self.data_dir, "input_ids", fname), allow_pickle=True
+            os.path.join(self.data_dir, "inputs_ids", fname), allow_pickle=True
         )
         type_ids = np.load(
             os.path.join(self.data_dir, "type_ids", fname), allow_pickle=True
