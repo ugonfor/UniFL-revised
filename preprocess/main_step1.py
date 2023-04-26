@@ -5,6 +5,7 @@ from preprocess_utils import *
 import argparse
 
 
+
 def filter_ID_TIME_NULL(src, config, rawdata_path, inputdata_path, sample=False):
 
     table_list = []
@@ -29,8 +30,11 @@ def filter_ID_TIME_NULL(src, config, rawdata_path, inputdata_path, sample=False)
 
         # 2. Rename columns
         df.rename(columns={table_dict["time_column"]: "TIME"}, inplace=True)
-        df.rename(columns={config["ID"][src]: "ID"}, inplace=True)
-        print("[2] Rename columns to ID, TIME")
+        if config["ID"][src] not in df.columns:
+            df.rename(columns={config["SUB_ID"][src]: "SUB_ID"}, inplace=True)
+        else:
+            df.rename(columns={config["ID"][src]: "ID"}, inplace=True)
+        print("[2] Rename columns to ID, TIME or SUB_ID, TIME")
 
         # 3. Map ITEMID into desciprions
         if table_name in config["DICT_FILE"][src].keys():
@@ -49,7 +53,13 @@ def filter_ID_TIME_NULL(src, config, rawdata_path, inputdata_path, sample=False)
         icu = pd.read_pickle(os.path.join(inputdata_path, f"{src}_cohort.pkl"))
         if src == "mimiciv":
             columns_upper(icu)
+        
+        # 3.5. If there is No coulmns, config["ID"][src]...
         icu.rename(columns={config["ID"][src]: "ID"}, inplace=True)
+        if "SUB_ID" in df.columns:
+            icu.rename(columns={config["SUB_ID"][src]: "SUB_ID"}, inplace=True)
+            df = df.merge(icu[['ID','SUB_ID']], how='left', on='SUB_ID')
+            df.drop(columns="SUB_ID", inplace=True, errors='ignore')
 
         # 4. Filter ID and TIME by ICUSTAY's ID and TIME
         if src in ["mimiciii", "mimiciv"]:
@@ -99,14 +109,6 @@ def filter_ID_TIME_NULL(src, config, rawdata_path, inputdata_path, sample=False)
             table_list[0].shape[1] + table_list[1].shape[1] + table_list[2].shape[1],
         ),
     )
-
-    # 8. Remove ID where # events < 10
-    min_event = 10
-    temp = pd.DataFrame(cat_df.ID.value_counts() < min_event)
-    id_below10events = temp[temp["ID"]].index
-    min_threshold = cat_df["ID"].isin(id_below10events)
-    cat_df = cat_df[~min_threshold]
-    print("[8] Remove ID where # events < 10: ", cat_df.shape)
 
     # 9. Sort the table
     df_sorted = cat_df.sort_values(["ID", "TIME"], ascending=True)
@@ -222,6 +224,7 @@ def get_parser():
     parser = argparse.ArgumentParser()
     parser.add_argument("--rawdata_path", type=str, default="RAWDATA_PATH")
     parser.add_argument("--inputdata_path", type=str, default="INPUTDATA_PATH")
+    parser.add_argument("--sample", type=bool, default=False)
     return parser
 
 
@@ -230,7 +233,8 @@ def main():
 
     # Args
     tokenizer = AutoTokenizer.from_pretrained("emilyalsentzer/Bio_ClinicalBERT")
-    sample = False
+    sample = args.sample
+    print("sample: ", sample)
 
     # Read config and numeric dict
     config_path = "./json/config.json"
@@ -242,7 +246,7 @@ def main():
     with open(numeric_path, "r") as numeric_outfile:
         numeric_dict = json.load(numeric_outfile)
 
-    for src in ["mimiciii", "eicu", "mimic4"]:
+    for src in ["mimiciii", "eicu", "mimiciv"]:
 
         os.makedirs(os.path.join(args.inputdata_path, src), exist_ok=True)
 
@@ -255,7 +259,7 @@ def main():
 
             # 1.Filter ID, TIME, NULL
             df_1st, column_names = filter_ID_TIME_NULL(
-                "mimiciii", config, args.rawdata_path, args.inputdata_path, sample=sample
+                src, config, args.rawdata_path, args.inputdata_path, sample=sample
             )
             df_temp = df_1st.copy()
 
@@ -295,7 +299,7 @@ def main():
         for table_dict in config["Table"][src]:
             for preprocess_type in ["whole"]:
                 for embed_type in ["descemb"]:
-
+                    
                     table_name = table_dict["table_name"]
                     print(
                         "src : ",
@@ -314,11 +318,6 @@ def main():
                         df = col_select(df, config, src, table_name)
 
                     if embed_type == "descemb":
-                        print("TEST!!!!")
-                        df = df.iloc[:10]
-                        print(df)
-                        print("TEST!!!!")
-
                         
                         df = descemb_tokenize(df, table_name)
                         df = df[
@@ -332,36 +331,8 @@ def main():
                                 "ORDER",
                             ]
                         ]
-                        print(df)
                         print("(EX) ", tokenizer.decode(df["event_token"].iloc[0]))
-                        print("(EX) ", tokenizer.decode(df["event_token"].iloc[1]))
-                        print("(EX) ", tokenizer.decode(df["event_token"].iloc[2]))
-                        print("(EX) ", tokenizer.decode(df["event_token"].iloc[3]))
-                        print("(EX) ", tokenizer.decode(df["event_token"].iloc[4]))
-                        print("(EX) ", tokenizer.decode(df["event_token"].iloc[5]))
-                        print("(EX) ", tokenizer.decode(df["event_token"].iloc[6]))
-                        print("(EX) ", tokenizer.decode(df["event_token"].iloc[7]))
-                        print("(EX) ", tokenizer.decode(df["event_token"].iloc[8]))
-                        print("(EX) ", tokenizer.decode(df["event_token"].iloc[9]))
-                        exit(0)
 
-                    elif embed_type == "codeemb":
-                        df = buckettize_categorize(
-                            df, src, numeric_dict, table_name, quant
-                        )
-                        df.fillna(" ", inplace=True)
-                        df.replace("nan", " ", inplace=True)
-                        df = codeemb_event_merge(df, table_name)
-                        df = df[
-                            [
-                                "ID",
-                                "TIME",
-                                "time_bucket",
-                                "event_token",
-                                "type_token",
-                                "ORDER",
-                            ]
-                        ]
 
                     if not os.path.isdir(
                         os.path.join(

@@ -14,13 +14,13 @@ def get_parser():
 
 def main():
     args = get_parser().parse_args()
-    src_list = ["mimic3", "eicu", "mimic4"]
+    src_list = ["mimiciii", "eicu", "mimiciv"]
     label_list = ["los3", "los7", "dx", "mort", "readm", "im_disch", "fi_ac"]
     target_list = ["input_ids", "dpe_ids", "type_ids"]
 
     client_list = [
-        "mimic3_mv",
-        "mimic3_cv",
+        "mimiciii_mv",
+        "mimiciii_cv",
         "eicu_73",
         "eicu_264",
         "eicu_420",
@@ -29,7 +29,7 @@ def main():
         "eicu_338",
         "eicu_443",
     ]
-    # No need split mimic4
+    # No need split mimiciv
     id_dict = {
         "pid": {client: [] for client in client_list},
         "index": {client: [] for client in client_list},
@@ -37,29 +37,29 @@ def main():
 
     # MIMIC-III split
 
-    fold_mimic3 = pd.read_csv(
-        os.path.join(args.inputdata_path, "mimic3", "fold", "fold_100.csv")
+    fold_mimiciii = pd.read_csv(
+        os.path.join(args.inputdata_path, "mimiciii", "fold", "fold_100.csv")
     )
-    icu_mimic3 = pd.read_csv(os.path.join(args.rawdata_path, "mimic3", "ICUSTAYS.csv"))
-    icu_mimic3.rename(columns={"HADM_ID": "pid"}, inplace=True)
-    icu_mimic3 = icu_mimic3[icu_mimic3["pid"].isin(fold_mimic3["pid"].values)]
-    icu_mimic3 = icu_mimic3.groupby("pid").first().reset_index()
+    icu_mimiciii = pd.read_csv(os.path.join(args.rawdata_path, "mimiciii", "ICUSTAYS.csv"))
+    icu_mimiciii.rename(columns={"HADM_ID": "pid"}, inplace=True)
+    icu_mimiciii = icu_mimiciii[icu_mimiciii["pid"].isin(fold_mimiciii["pid"].values)]
+    icu_mimiciii = icu_mimiciii.groupby("pid").first().reset_index()
 
-    fold_mimic3 = fold_mimic3.merge(
-        icu_mimic3[["pid", "DBSOURCE"]], how="left", on="pid"
+    fold_mimiciii = fold_mimiciii.merge(
+        icu_mimiciii[["pid", "DBSOURCE"]], how="left", on="pid"
     )
 
-    id_dict["pid"]["mimic3_mv"] = fold_mimic3[fold_mimic3["DBSOURCE"] == "metavision"][
+    id_dict["pid"]["mimiciii_mv"] = fold_mimiciii[fold_mimiciii["DBSOURCE"] == "metavision"][
         "pid"
     ].tolist()
-    id_dict["pid"]["mimic3_cv"] = fold_mimic3[fold_mimic3["DBSOURCE"] == "carevue"][
+    id_dict["pid"]["mimiciii_cv"] = fold_mimiciii[fold_mimiciii["DBSOURCE"] == "carevue"][
         "pid"
     ].tolist()
-    id_dict["index"]["mimic3_mv"] = fold_mimic3[
-        fold_mimic3["DBSOURCE"] == "metavision"
+    id_dict["index"]["mimiciii_mv"] = fold_mimiciii[
+        fold_mimiciii["DBSOURCE"] == "metavision"
     ].index.tolist()
-    id_dict["index"]["mimic3_cv"] = fold_mimic3[
-        fold_mimic3["DBSOURCE"] == "carevue"
+    id_dict["index"]["mimiciii_cv"] = fold_mimiciii[
+        fold_mimiciii["DBSOURCE"] == "carevue"
     ].index.tolist()
 
     # eicu split

@@ -121,6 +121,11 @@ def create_mimiciv_ICU(args):
     df["readmission"] = df["ICUSTAY_ID"].apply(lambda x: 1 if x > 1 else 0)
     print(df["readmission"].value_counts())
 
+    icu.INTIME, icu.OUTTIME = (
+        pd.to_datetime(icu.INTIME),
+        pd.to_datetime(icu.OUTTIME)
+    )
+
     icu.sort_values("INTIME", ascending=True, inplace=True)
 
     icu = icu.groupby("HADM_ID").first()

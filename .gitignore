@@ -1,3 +1,7 @@
+#ugonfor wrote
+*.csv
+*.pkl
+*.npy
 train_dataset
 preprocessed_dataset
 

@@ -45,7 +45,7 @@ class DescEmb(nn.Module):
         self.args = args
 
         self.input_index_size = 28119  # 28996 # bio clinical bert vocab
-        self.type_index_size = 14  # mimic3 + eicu + mimic4
+        self.type_index_size = 14  # mimiciii + eicu + mimiciv
         self.dpe_index_size = 25
 
         self.dpe = args.dpe

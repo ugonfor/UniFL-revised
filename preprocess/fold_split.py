@@ -1,6 +1,6 @@
 import pandas as pd
 import numpy as np
-from sklearn.model_selection import StratifiedShuffleSplit
+from sklearn.model_selection import ShuffleSplit
 from sklearn.model_selection import train_test_split
 from iterstrat.ml_stratifiers import MultilabelStratifiedKFold
 import warnings
@@ -33,7 +33,7 @@ def random_split(df, seed, test_split, val_split):
 
 
 def stratified(df, col, seed, test_split, val_split):
-    split = StratifiedShuffleSplit(
+    split = ShuffleSplit(
         n_splits=1, test_size=1 / test_split, random_state=seed
     )
     # train / test
@@ -42,9 +42,10 @@ def stratified(df, col, seed, test_split, val_split):
         df_strat_train = df.loc[train_idx].reset_index(drop=True)
         df_strat_test[col + f"_{seed}_strat"] = 0
 
-    split = StratifiedShuffleSplit(
+    split = ShuffleSplit(
         n_splits=1, test_size=1 / val_split, random_state=seed
     )
+    
     for train_idx, val_idx in split.split(df_strat_train, df_strat_train[col]):
         df_strat_valid = df_strat_train.loc[val_idx].reset_index(drop=True)
         df_strat_train = df_strat_train.loc[train_idx].reset_index(drop=True)
@@ -58,9 +59,7 @@ def stratified(df, col, seed, test_split, val_split):
 
 
 def multiclass_multilabel_stratified(df, col, seed):
-    X = np.array([[1, 2], [3, 4], [1, 2], [3, 4], [1, 2], [3, 4], [1, 2], [3, 4]])
-    y = np.array([[0, 0], [0, 0], [0, 1], [0, 1], [1, 1], [1, 1], [1, 0], [1, 0]])
-
+    
     msss = MultilabelStratifiedKFold(n_splits=10, shuffle=True, random_state=seed)
     for train_index, test_index in msss.split(
         np.array(df["pid"].tolist()), np.array(df["dx"].tolist())
@@ -88,28 +87,12 @@ def multiclass_multilabel_stratified(df, col, seed):
 
 
 def stratified_split(df, seed, test_split, val_split):
-    pred_tasks = ["mort", "los3", "los7", "readm", "dx"]
-
-    for col in pred_tasks:
-        print("columns : ", col)
-        if col in df.columns:
-            df[col + f"_{seed}_strat"] = 1
-            if col in ["fi_ac", "im_disch"]:
-                if col == "fi_ac":
-                    remove_class = 17
-                elif col == "im_disch":
-                    remove_class = 16
-                fi_df = df[df[col] == remove_class]
-                df = df[df[col] != remove_class].reset_index(drop=True)
-                df = stratified(df, col, seed, test_split, val_split)
-                df = pd.concat([df, fi_df], axis=0)
-                df.sort_values(by="pid", ascending=True, inplace=True)
-                df.reset_index(drop=True, inplace=True)
-            elif col == "dx":
-                df = multiclass_multilabel_stratified(df, col, seed)
-            else:
-                df = stratified(df, col, seed, test_split, val_split)
-        else:
-            raise AssertionError("Wrong, check!")
+    col = "labels"
+    print("columns : ", col)
+    if col in df.columns:
+        df[col + f"_{seed}_strat"] = 1
+        df = stratified(df, col, seed, test_split, val_split)
+    else:
+        raise AssertionError("Wrong, check!")
 
     return df

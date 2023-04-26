@@ -1,5 +1,15 @@
 # Universal EHR Federated Learning Framework
 This repository is the codes for [UniFL](https://arxiv.org/abs/2211.07300)
+
+# MEMO by ugonfor
+
+1. You can check the important codes by finding "!IMPORTANT"
+2. There was too many syntax error, so I fix them.
+
+
+
+
+
 ## How to Run
 ### Requirements
 ```
@@ -19,7 +29,7 @@ $ conda create env -f env.yaml
 - Move the files like below structure
 ```
 <rawdata_path>
-├─ mimic3
+├─ mimiciii
 │  ├─ ADMISSIONS.csv
 │  ├─ PATIENTS.csv
 │  ├─ ICUSYAYS.csv
@@ -37,7 +47,7 @@ $ conda create env -f env.yaml
 │  ├─ lab.csv
 │  ├─ medication.csv
 │  └─ patient.csv
-├─ mimic4
+├─ mimiciv
 │  ├─ admissions.csv
 │  ├─ ...
 │  └─ 2018_I10gem.txt

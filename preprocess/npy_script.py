@@ -13,12 +13,12 @@ def get_parser():
 def main():
     args = get_parser().parse_args()
 
-    srcs = ["mimic3", "eicu", "mimic4"]
+    srcs = ["mimiciii", "eicu", "mimiciv"]
 
     for src in srcs:
-        input_path = os.path.join(args.inputdata_path, "npy", src)
+        input_path = os.path.join(args.inputdata_path, src, "npy")
         inputs = np.load(
-            os.path.join(input_path, f"input_ids.npy"),
+            os.path.join(input_path, f"inputs_ids.npy"),
             allow_pickle=True,
         ).astype(np.int64)
 
@@ -31,6 +31,11 @@ def main():
             os.path.join(input_path, f"dpe_ids.npy"),
             allow_pickle=True,
         ).astype(np.int64)
+
+        if not os.path.isdir( os.path.join(input_path, "dpe_ids") ):
+            os.mkdir(os.path.join(input_path, "inputs_ids"))
+            os.mkdir(os.path.join(input_path, "type_ids"))
+            os.mkdir(os.path.join(input_path, "dpe_ids"))
 
         for idx, inp in enumerate(inputs):
             remove_zero_events = np.array([i for i in inp if np.any(i)])
@@ -48,20 +53,21 @@ def main():
             ]
             # breakpoint()
 
-        np.save(
-            os.path.join(input_path, "input_ids", f"{idx}.npy"),
-            trunc_inp,
-        )
-        np.save(
-            os.path.join(input_path, "type_ids", f"{idx}.npy"),
-            trunc_type,
-        )
-        np.save(
-            os.path.join(input_path, "dpe_ids", f"{idx}.npy"),
-            trunc_dpes,
-        )
+            
+            np.save(
+                os.path.join(input_path, "inputs_ids", f"{idx}.npy"),
+                trunc_inp,
+            )
+            np.save(
+                os.path.join(input_path, "type_ids", f"{idx}.npy"),
+                trunc_type,
+            )
+            np.save(
+                os.path.join(input_path, "dpe_ids", f"{idx}.npy"),
+                trunc_dpes,
+            )
 
-    print("[{}] Finished creating npy datasets for {}...".format(src))
+        print("[{}] Finished creating npy datasets for {}...".format(src))
 
 
 if __name__ == "__main__":

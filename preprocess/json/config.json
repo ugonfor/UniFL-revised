@@ -22,7 +22,7 @@
                     "GSN",
                     "NDC",
                     "ROW_ID",
-                    "ICUSTAY_ID",
+                    "HADM_ID",
                     "SUBJECT_ID"
                 ]
             },
@@ -40,7 +40,25 @@
                     "ORDERID",
                     "LINKORDERID",
                     "ROW_ID",
-                    "ICUSTAY_ID",
+                    "HADM_ID",
+                    "SUBJECT_ID"
+                ]
+            },
+            {
+                "table_name": "INPUTEVENTS_MV",
+                "time_column": "STARTTIME",
+                "table_type": "inf",
+                "time_excluded": [
+                    "ENDTIME",
+                    "STORETIME",
+                    "COMMENTS_DATE"
+                ],
+                "id_excluded": [
+                    "CGID",
+                    "ORDERID",
+                    "LINKORDERID",
+                    "ROW_ID",
+                    "HADM_ID",
                     "SUBJECT_ID"
                 ]
             }
@@ -81,7 +99,7 @@
                 ]
             }
         ],
-        "mimic4": [
+        "mimiciv": [
             {
                 "table_name": "labevents",
                 "time_column": "CHARTTIME",
@@ -120,8 +138,7 @@
                 "id_excluded": [
                     "ORDERID",
                     "LINKORDERID",
-                    "SUBJECT_ID",
-                    "STAY_ID"
+                    "SUBJECT_ID"
                 ]
             }
         ]
@@ -170,7 +187,7 @@
                 "uom": "uom"
             }
         },
-        "mimic4": {
+        "mimiciv": {
             "labevents": {
                 "ID": "ID",
                 "ITEMID": "code",
@@ -204,7 +221,7 @@
             ]
         },
         "eicu": {},
-        "mimic4": {
+        "mimiciv": {
             "labevents": [
                 "d_labitems",
                 "ITEMID"
@@ -216,8 +233,12 @@
         }
     },
     "ID": {
-        "mimiciii": "HADM_ID",
+        "mimiciii": "ICUSTAY_ID",
         "eicu": "patientunitstayid",
-        "mimic4": "HADM_ID"
+        "mimiciv": "STAY_ID"
+    },
+    "SUB_ID": {
+        "mimiciii": "HADM_ID",
+        "mimiciv": "HADM_ID"
     }
 }

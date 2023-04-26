@@ -14,9 +14,9 @@ import argparse
 warnings.filterwarnings("ignore")
 
 tokenizer = AutoTokenizer.from_pretrained("emilyalsentzer/Bio_ClinicalBERT")
+print("main_step2.py started")
 
-
-def complete_dataframe(src, table_names, config, inputdata_path, root):
+def complete_dataframe(src, table_names, config, rawdata_path, inputdata_path):
 
     lab = pd.read_pickle(
         os.path.join(inputdata_path, src, "descemb_whole", f"{table_names[0]}.pkl")
@@ -36,84 +36,81 @@ def complete_dataframe(src, table_names, config, inputdata_path, root):
 
     sorted_df = df.sort_values(["ORDER"], ascending=True).reset_index(drop=True)
     df_agg = sorted_df.groupby(["ID"]).agg(lambda x: x.tolist())
-    print(">> Sort by time and liniearize events for each HADM_ID")
+    print(">> Sort by time and liniearize events for each ID")
 
-    # Read cohort dataframe including label info.
-    cohort_df = pd.read_pickle(os.path.join(inputdata_path, "{src}_cohort.pkl"))
-    cohort_df = cohort_df[
-        [
-            config["ID"][src],
-            "readmission",
-            "mortality",
-            "los_3day",
-            "los_7day",
-            "final_acuity",
-            "imminent_discharge",
-            "diagnosis",
-        ]
-    ]
-    cohort_df.rename(columns={config["ID"][src]: "ID"}, inplace=True)
+    # !IMPORTANT
+    # Label check
+    label_df = pd.read_csv(os.path.join(rawdata_path, "labels", f"{src}_labels.csv"))
+    print(f">> loading {src}_labels.csv : {label_df.info()}")
+    if src == "mimiciv":
+        label_df.rename(columns={config["ID"][src].lower(): "ID"}, inplace=True)
+    else:
+        label_df.rename(columns={config["ID"][src]: "ID"}, inplace=True)
     print(">> Read cohort dataframe to generate labels")
 
     # Merge concat dataframe & cohort dataframe
-    pred_df = pd.merge(df_agg, cohort_df, how="left", on="ID")
+    label_df = pd.merge(label_df, df_agg, how="left", on="ID")
+    label_df = label_df.fillna('[]')
+    label_df.rename(columns={"ID":"pid"}, inplace=True)
 
-    label = {
-        "ID": "pid",
-        "mortality": "mort",
-        "los_3day": "los3",
-        "los_7day": "los7",
-        "readmission": "readm",
-        "diagnosis": "dx",
-        "final_acuity": "fi_ac",
-        "imminent_discharge": "im_disch",
-    }
-
-    label_df = pred_df.rename(columns=label)
-
-    label_df.to_csv(os.path.join(inputdata_path, src, "label_df.csv"))
+    label_df.to_csv(os.path.join(inputdata_path, src, "label", "label_df.csv"))
 
     return label_df
 
+from typing import List
+def label2target(label: List):
+    assert len(label) == 28
+    levels = [1 for _ in range(22)]
+    levels += [6,6,5,5,5,3]
+    
+    target = []
+    for i in range(len(label)):
+        if label[i] == -1:
+            target += [0.5 for _ in range(levels[i])]
+        else:
+            if levels[i] == 1:
+                target += [label[i]]
+            else:
+                tmp = [0 for _ in range(levels[i])]
+                tmp[label[i]] = 1
+                target += tmp
+
+    assert len(target) == 52
+    return target
 
 def split_traintest(label_df, check):
 
     # One-hot multi-label for diagnosis label
-    label_df["dx"] = label_df["dx"].apply(lambda x: list(map(int, x)))
-    mlb = MultiLabelBinarizer()
-    multihot = mlb.fit_transform(label_df["dx"]).tolist()
-    label_df["dx"] = pd.Series(multihot)
-
+    label_df["labels"] = label_df["labels"].apply(lambda x: label2target(eval(x))) # !IMPORTANT FIX it
+    
     # Make random seeds
     seed_list = [2020, 2021, 2022, 2023, 2024]
-    test_split = 10
-    val_split = 9
+    test_split = 5
+    val_split = 4
 
     df = label_df.copy()
     for seed in seed_list:
         print("seed split start : ", seed)
         df = stratified_split(df, seed, test_split, val_split)
         df = random_split(df, seed, test_split, val_split)
-
+    
     # Check
     if check:
-        pred_tasks = ["mort", "los3", "los7", "readm", "dx", "im_disch", "fi_ac"]
-
         # for stratified split
         print("stratified split sanity check !\n")
-        for col in pred_tasks:
-            for seed in seed_list:
-                if col in df.columns:
-                    print(
-                        "train = 1/ valid =2 / test= 0 / remove= -1 \n",
-                        df[col + f"_{seed}_strat"].value_counts(),
-                    )
-                    print(
-                        "train label ratio \n ",
-                        df.groupby([col, col + f"_{seed}_strat"]).size()
-                        / len(df)
-                        * 100,
-                    )
+        col = "labels"
+        for seed in seed_list:
+            if col in df.columns:
+                print(
+                    "train = 1/ valid =2 / test= 0 / remove= -1 \n",
+                    df[col + f"_{seed}_strat"].value_counts(),
+                )
+                print(
+                    "train label ratio \n ",
+                    df.groupby([col, col + f"_{seed}_strat"]).size()
+                    / len(df)
+                    * 100,
+                )
 
         # for random split
         print("random split sanity check !\n")
@@ -121,25 +118,23 @@ def split_traintest(label_df, check):
             "train = 1/ valid =2 / test= 0 / remove= -1 \n",
             df[f"{seed}_rand"].value_counts(),
         )
-        for col in pred_tasks:
-            if col in df.columns:
-                print(
-                    "train label ratio \n ",
-                    df.groupby([col, f"{seed}_rand"]).size() / len(df) * 100,
-                )
+        col = "labels"
+        if col in df.columns:
+            print(
+                "train label ratio \n ",
+                df.groupby([col, f"{seed}_rand"]).size() / len(df) * 100,
+            )
 
     return df
 
 
 def dataframe2numpy(df, root, src):
 
-    np.save(os.path.join(root, src, "inputs.npy"), df.event_token.to_numpy())
-    np.save(os.path.join(root, src, "types.npy"), df.type_token.to_numpy())
-    np.save(os.path.join(root, src, "dpes.npy"), df.dpe_token.to_numpy())
+    np.save(os.path.join(root, src, "npy", "inputs.npy"), df.event_token.to_numpy())
+    np.save(os.path.join(root, src, "npy", "types.npy"), df.type_token.to_numpy())
+    np.save(os.path.join(root, src, "npy", "dpes.npy"), df.dpe_token.to_numpy())
 
-    pred_tasks = ["mort", "los3", "los7", "readm", "dx"]
-    for task in pred_tasks:
-        np.save(os.path.join(root, src, "label", f"{task}.npy"), df[task].to_numpy())
+    np.save(os.path.join(root, src, "label", f"labels.npy"), df['labels'].to_numpy())
 
 
 def count_events_per_8192(types, max_len):
@@ -149,8 +144,9 @@ def count_events_per_8192(types, max_len):
     for type_ids in types:
 
         # Flatten data
+        if type(type_ids) == str:
+            type_ids = eval(type_ids)
         type_ids = sum(type_ids, [])
-
         # The first token should be [CLS]
         type_ids.insert(0, 1)
 
@@ -193,14 +189,15 @@ def match_eventlen(event, event_len, event_max_len, max_len):
 
     # 2. If the number of events exceeds the maximum, the event is discarded
     if len(hi_event) > event_max_len:
-        return None
+        hi_event = hi_event[:event_max_len]
+        return hi_event
     else:
         return hi_event
 
 
 def make_hi_data(inputs, types, dpes, event_count, event_max_len, word_max_len):
 
-    sample_num = len(event_count) - (np.array(event_count) > event_max_len).sum()
+    sample_num = len(event_count)
 
     input_events_list = np.empty((sample_num, event_max_len, word_max_len)).astype(
         np.int16
@@ -218,6 +215,13 @@ def make_hi_data(inputs, types, dpes, event_count, event_max_len, word_max_len):
     for input_event, type_event, dpe_event, event_len in zip(
         inputs, types, dpes, event_count
     ):
+        # 하.... list로 처리해야하는거 string으로 처리함....
+        if type(input_event) == str:
+            input_event = eval(input_event)
+        if type(type_event) == str:
+            type_event = eval(type_event)
+        if type(dpe_event) == str:
+            dpe_event = eval(dpe_event)
 
         hi_input_event = match_eventlen(
             input_event, event_len, event_max_len, word_max_len
@@ -225,7 +229,8 @@ def make_hi_data(inputs, types, dpes, event_count, event_max_len, word_max_len):
         hi_type_event = match_eventlen(
             type_event, event_len, event_max_len, word_max_len
         )
-        hi_dpe_event = match_eventlen(dpe_event, event_len, event_max_len, word_max_len)
+        hi_dpe_event = match_eventlen(
+            dpe_event, event_len, event_max_len, word_max_len)
 
         if hi_input_event is None:
             events_exceeded += 1
@@ -430,7 +435,7 @@ def get_parser():
 
 def main():
     args = get_parser().parse_args()
-
+    print("START")
     # Argument
     save = True
     config_path = "./json/config.json"
@@ -438,7 +443,10 @@ def main():
     with open(config_path, "r") as config_file:
         config = json.load(config_file)
 
-    for src in ["mimic3", "eicu", "mimic4"]:
+    for src in ["mimiciii", "eicu", "mimiciv"]:
+        if os.path.isfile(os.path.join(args.inputdata_path, src, "fold", "fold_100.csv")):
+            continue
+        
         os.makedirs(os.path.join(args.inputdata_path, src), exist_ok=True)
         os.makedirs(os.path.join(args.inputdata_path, src, "label"), exist_ok=True)
         os.makedirs(os.path.join(args.inputdata_path, src, "fold"), exist_ok=True)
@@ -447,33 +455,33 @@ def main():
         table_names = [elem["table_name"] for elem in config["Table"][src]]
 
         # [1] Find label and make fold splits
-        if not os.path.isfile(os.path.join(args.inputdata_path), "label_df.csv"):
-            df = complete_dataframe(src, table_names, config, args.inputdata_path)
+        if not os.path.isfile(os.path.join(args.inputdata_path, src, "label", "label_df.csv")): # 아니 진짜 오타 개많네
+            df = complete_dataframe(src, table_names, config, args.rawdata_path, args.inputdata_path)
         else:
             start = time.time()
-            df = pd.read_csv(os.path.join(args.inputdata_path, "label_df.csv"))
+            df = pd.read_csv(os.path.join(args.inputdata_path, src, "label", "label_df.csv"))
             end = time.time()
             print(">> Loading {} csv is done... {} [sec]".format(df.shape, end - start))
 
-        if not os.path.isfile(os.path.join(args.inputdata_path, "dpes.npy")):
+        if not os.path.isfile(os.path.join(args.inputdata_path, src, "npy", "labels.npy")):
             # [2] Convert df to numpy
-            dataframe2numpy(df, args.inputdata_path)
+            dataframe2numpy(df, args.inputdata_path, src)
 
         start = time.time()
         inputs = np.load(
-            os.path.join(args.inputdata_path, src, "inputs.npy"), allow_pickle=True
+            os.path.join(args.inputdata_path, src, "npy", "inputs.npy"), allow_pickle=True
         )
         types = np.load(
-            os.path.join(args.inputdata_path, src, "types.npy"), allow_pickle=True
+            os.path.join(args.inputdata_path, src, "npy", "types.npy"), allow_pickle=True
         )
         dpes = np.load(
-            os.path.join(args.inputdata_path, src, "dpes.npy"), allow_pickle=True
+            os.path.join(args.inputdata_path, src, "npy", "dpes.npy"), allow_pickle=True
         )
         end = time.time()
         print(
             ">> Loading numpy {} is done... {} [sec]".format(inputs.shape, end - start)
         )
-
+        
         # [3] Fix-length data
         event_count = count_events_per_8192(types, max_len=8192)
 
@@ -497,35 +505,32 @@ def main():
 
         mask = np.array(event_count) > 256
         print(f">> {mask.sum()} events are discared ..")
-
         if save:
             np.save(
-                os.path.join(args.inputdata_path, "npy", "inputs_ids.npy"),
+                os.path.join(args.inputdata_path, src, "npy", "inputs_ids.npy"),
                 hi_output["inputs"],
             )
             np.save(
-                os.path.join(args.inputdata_path, "npy", "type_ids.npy"),
+                os.path.join(args.inputdata_path, src, "npy", "type_ids.npy"),
                 hi_output["types"],
             )
             np.save(
-                os.path.join(args.inputdata_path, "npy", "dpe_ids.npy"),
+                os.path.join(args.inputdata_path, src, "npy", "dpe_ids.npy"),
                 hi_output["dpes"],
             )
 
-            pred_tasks = ["mort", "los3", "los7", "readm", "dx"]
-
-            for task in pred_tasks:
-                pred_data = np.load(
-                    os.path.join(args.inputdata_path, src, "label", f"{task}.npy"),
-                    allow_pickle=True,
-                )
-                np.save(
-                    os.path.join(args.inputdata_path, f"{task}.npy"), pred_data[~mask]
-                )
-                print(f"[{task}] \t", pred_data[~mask].shape)
-
+            task = 'labels'
+            pred_data = np.load(
+                os.path.join(args.inputdata_path, src, "label", f"{task}.npy"),
+                allow_pickle=True,
+            )
+            np.save(
+                os.path.join(args.inputdata_path, src, "label", f"{task}.npy"), pred_data[~mask]
+            )
+            print(f"[{task}] \t", pred_data[~mask].shape)
+            
             split_traintest(df[~mask].reset_index(drop=False), check=False).to_csv(
-                os.path.join(args.inputdata_path, "fold", f"fold_100.csv")
+                os.path.join(args.inputdata_path, src, "fold", f"fold_100.csv")
             )
 
 

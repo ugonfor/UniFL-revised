@@ -14,8 +14,8 @@ def main(args):
     args = get_parser().parse_args()
 
     src_list = [
-        "mimic3_mv",
-        "mimic3_cv" "mimic4",
+        "mimiciii_mv",
+        "mimiciii_cv" "mimiciv",
         "eicu_73",
         "eicu_243",
         "eicu_264",

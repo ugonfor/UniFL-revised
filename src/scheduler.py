@@ -3,9 +3,9 @@ import argparse
 import os
 
 datasets = [
-    "mimic3_mv",
-    "mimic3_cv",
-    "mimic4",
+    "mimiciii_mv",
+    "mimiciii_cv",
+    "mimiciv",
     "eicu_73",
     "eicu_264",
     "eicu_420",

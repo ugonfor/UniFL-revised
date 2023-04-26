@@ -98,19 +98,15 @@ def ID_time_filter_eicu(df, icu):
     return time_fil
 
 def ID_time_filter_mimic(df, icu):
-    icu['INTIME+12hr'] = icu['INTIME'] + pd.Timedelta(12, unit="h")
     df = df[df['ID'].isin(icu['ID'])]# ID filter
     df['ID'] = df['ID'].astype('int')
     df['TIME'] = pd.to_datetime(df['TIME'])
   
-    df = df.merge(icu[['ID', 'INTIME', 'INTIME+12hr']], on='ID', how='left').reset_index(drop=True)
-    time_fil= df[(df['TIME'] > df['INTIME']) &
-                      (df['TIME'] < df['INTIME+12hr'])
-                ]
-    time_fil['TIME'] = (time_fil['TIME'] - time_fil['INTIME']).astype('timedelta64[m]')
-    time_fil.drop(columns=['INTIME', 'INTIME+12hr'], inplace=True)
-    time_fil.reset_index(drop=True, inplace=True)
-    return time_fil
+    df = df.merge(icu[['ID', 'INTIME']], on='ID', how='left').reset_index(drop=True)
+    df['TIME'] = (df['TIME'] - df['INTIME']).astype('timedelta64[m]')
+    df.drop(columns=['INTIME'], inplace=True)
+    df.reset_index(drop=True, inplace=True)
+    return df
 
 def columns_upper(df):
     df.columns = [x.upper() for x in df.columns]

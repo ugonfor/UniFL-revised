@@ -19,9 +19,9 @@ os.environ["OMP_NUM_THREADS"] = "8"
 
 
 available_srcs = [
-    "mimic3_mv",
-    "mimic3_cv",
-    "mimic4",
+    "mimiciii_mv",
+    "mimiciii_cv",
+    "mimiciv",
     "eicu_73",
     "eicu_264",
     "eicu_420",
@@ -63,9 +63,9 @@ def get_parser():
 
     parser.add_argument(
         "--pred_target",
-        choices=["mort", "los3", "los7", "readm", "dx"],
+        choices=["labels"],
         type=str,
-        default="mort",
+        default="labels",
         help="",
     )
 

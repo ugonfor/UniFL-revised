@@ -1,5 +1,5 @@
 {
-    "mimic3": {
+    "mimiciii": {
         "LABEVENTS": {
             "value": [
                 "VALUE",
@@ -66,7 +66,7 @@
             "code": "drugname"
         }
     },
-    "mimic4": {
+    "mimiciv": {
         "labevents": {
             "value": [
                 "VALUE",
