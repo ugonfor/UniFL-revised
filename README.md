@@ -5,6 +5,11 @@ This repository is the codes for [UniFL](https://arxiv.org/abs/2211.07300)
 
 1. You can check the important codes by finding "!IMPORTANT"
 2. There was too many syntax error, so I fix them.
+3. ./input 폴더에다가 preprocessed 파일 풀고 실행
+```bash
+how to use:
+$ python main.py --input_path ./input/ --save_dir ./save --wandb_entity_name test_entity --wandb_project_name test_proj
+```
 
 
 
