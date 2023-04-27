@@ -66,8 +66,7 @@ def main():
                 os.path.join(input_path, "dpe_ids", f"{idx}.npy"),
                 trunc_dpes,
             )
-
-        print("[{}] Finished creating npy datasets for {}...".format(src))
+        print(f"[{src}] Finished creating npy datasets for {src}...")
 
 
 if __name__ == "__main__":

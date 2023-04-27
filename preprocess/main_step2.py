@@ -503,9 +503,8 @@ def main():
             )
         )
 
-        mask = np.array(event_count) > 256
-        print(f">> {mask.sum()} events are discared ..")
-        breakpoint()
+        # mask = np.array(event_count) > 256
+        # print(f">> {mask.sum()} events are discared ..")
         if save:
             np.save(
                 os.path.join(args.inputdata_path, src, "npy", "inputs_ids.npy"),
@@ -519,19 +518,9 @@ def main():
                 os.path.join(args.inputdata_path, src, "npy", "dpe_ids.npy"),
                 hi_output["dpes"],
             )
-
-            task = 'labels'
-            pred_data = np.load(
-                os.path.join(args.inputdata_path, src, "label", f"{task}.npy"),
-                allow_pickle=True,
-            )
-            np.save(
-                os.path.join(args.inputdata_path, src, "label", f"{task}.npy"), pred_data[~mask]
-            )
-            print(f"[{task}] \t", pred_data[~mask].shape)
             
-            split_traintest(df[~mask].reset_index(drop=False), check=False).to_csv(
-                os.path.join(args.inputdata_path, src, "fold", f"fold_100.csv")
+            split_traintest(df.reset_index(drop=False), check=False).to_csv(
+                os.path.join(args.inputdata_path, src, "fold", f"fold_5.csv")
             )
 
 
