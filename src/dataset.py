@@ -1,13 +1,15 @@
-import os
-import logging
+from . import BaseDataset, register_dataset
 
-import torch
-import torch.utils.data
-import numpy as np
+import pickle
 import pandas as pd
-from sklearn.preprocessing import MultiLabelBinarizer
+import os
+import torch
+import numpy as np
 
-logger = logging.getLogger(__name__)
+import torch.utils.data
+
+from typing import Dict, List, Any
+
 
 from typing import List
 def label2target(label: List):
@@ -29,188 +31,136 @@ def label2target(label: List):
     assert len(target) == 52
     return target
 
-class HierarchicalEHRDataset(torch.utils.data.Dataset):
+# setting
+class cfg:
+    # cfg 바꿀 경우에는 model.py에 있는 config도 변경해주어야 함.
+    dpe = False # use or not
+    type_token = True # use or not
+    pos_enc = True # use or not
+
+    embed_dim = 128
+    pred_dim = 128
+    output_dim = 28
+
+    dropout = 0.2
+    n_layers = 4
+    n_heads = 4
+    max_word_len = 256
+    max_seq_len = 256
+    pred_pooling = "cls" # "cls" "mean" 중 선택
+
+    dpe_index_size = 1 # 현재 구현 안한상태
+
+    ratio = 5
+
+    pred_target = 'labels'
+
+    eventencoder = "transformer"
+
+def padding_word(x, max_len):
+    if len(x) < max_len: return x + [0] * (max_len - len(x))
+    else: return x[:max_len]
+
+def padding_seq(x, max_seq):
+    if len(x) < max_seq: return x + [0 for _ in range(len(x[0]))] * (max_seq - len(x))
+    else: return x[:max_seq]
+
+@register_dataset("20233477_dataset")
+class MyDataset20233477(BaseDataset):
+    """
+    TODO:
+        create your own dataset here.
+        Rename the class name and the file name with your student number
+    
+    Example:
+    - 20218078_dataset.py
+        @register_dataset("20218078_dataset")
+        class MyDataset20218078(BaseDataset):
+            (...)
+    """
+
     def __init__(
         self,
-        data,
-        input_path,
-        split,
-        ratio,
-        pred_target,
-        seed,
-        debug,
-        max_word_len=128,
-        max_seq_len=512,
+        data_path: str, # data_path should be a path to the processed features
+        # ...,
         **kwargs,
     ):
+        super().__init__()
 
-        self.base_path = os.path.join(input_path, data)
-        self.seed = seed
-        self.split = split
-        self.seed = seed
+        data = ['mimiciii', 'mimiciv', 'eicu']
 
-        self.debug = debug
+        self.base_path = [os.path.join(data_path, d) for d in data]
+        self.pred_target = cfg.pred_target
+
+        ## label data
+        label = [ np.load(
+            os.path.join(data_path, "label", self.pred_target + ".npy"),
+            allow_pickle=True,
+        ) for data_path in self.base_path ]
+        
+        self.num_datas = list(map(len, label)) # for dataset
+
+        # concate all dataset
+        label = np.concatenate(label)
+        label = np.array( 
+            list( map(lambda x: label2target(eval(x)), label.tolist()) )
+        )
+        self.label = torch.tensor(label, dtype=torch.long)
+
+        print(f"[LOG] loaded {data} {self.num_datas} samples")
+        
+        ## for dataset
+        self.data_dir = [ os.path.join(data_path, "npy") for data_path in self.base_path]
+        
+
+        ## other
+        self.max_word_len = cfg.max_word_len
+        self.max_seq_len = cfg.max_seq_len
+
         self.time_bucket_idcs = [
             idx for idx in range(4, 24)
         ]  # start range + bucket num + 1
 
-        self.data_dir = os.path.join(self.base_path, "npy")
-        self.fold_file = os.path.join(
-            self.base_path, "fold", "fold_{}.csv".format(ratio)
-        )
-
-        self.pred_target = pred_target
-
-        self.tokenizer = None
-
-        label = np.load(
-            os.path.join(self.base_path, "label", pred_target + ".npy"),
-            allow_pickle=True,
-        )
-        
-        label = np.array( 
-            list( map(lambda x: label2target(eval(x)), label.tolist()) )
-            )
-        
-        
-        self.label = torch.tensor(label, dtype=torch.long)
-
-        self.hit_idcs = self.get_fold_indices()
-        self.label = self.label[self.hit_idcs]
-
-        logger.info(f"loaded {data} {len(self.hit_idcs)} {self.split} samples")
-        self.max_word_len = max_word_len
-        self.max_seq_len = max_seq_len
-
         self.cls = 101
 
-    def get_fold_indices(self, return_all=False):
-        if self.split == "train":
-            hit = 1
-        elif self.split == "valid":
-            hit = 2
-        elif self.split == "test":
-            hit = 0
-
-        df = pd.read_csv(self.fold_file)
-        if return_all:
-            return np.arange(len(df))
-
-        col_name = self.pred_target + "_" + str(2020) + "_strat"
-
-        splits = df[col_name].values
-        idcs = np.where(splits == hit)[0]
-
-        return idcs
-
-    def __len__(self):
-        if self.debug:
-            return len(self.hit_idcs) // 100
-        return len(self.hit_idcs)
-
-    def crop_to_max_size(self, arr, target_size):
-        """
-        arr: 1d np.array of indices
-        """
-        size = len(arr)
-        diff = size - target_size
-        if diff <= 0:
-            return arr
-
-        return arr[:target_size]
-
-    def collator(self, samples):
-        samples = [s for s in samples if s["input_ids"] is not None]
-        if len(samples) == 0:
-            return {}
-
-        input = dict()
-        out = dict()
-
-        input["input_ids"] = [s["input_ids"] for s in samples]
-        input["type_ids"] = [s["type_ids"] for s in samples]
-        input["dpe_ids"] = [s["dpe_ids"] for s in samples]
-
-        seq_sizes = []
-        word_sizes = []
-        for s in input["input_ids"]:
-            seq_sizes.append(len(s))
-            for w in s:
-                word_sizes.append(len(w))
-
-        target_seq_size = min(max(seq_sizes), self.max_seq_len)
-        target_word_size = min(max(word_sizes), self.max_word_len)
-
-        collated_input = dict()
-        for k in input.keys():
-            collated_input[k] = torch.zeros(
-                (
-                    len(input["input_ids"]),
-                    target_seq_size,
-                    target_word_size,
-                )
-            ).long()
-
-        for i, seq_size in enumerate(seq_sizes):
-            for j in range(len(input["input_ids"][i])):
-                word_size = len(input["input_ids"][i][j])
-                diff = word_size - target_word_size
-                for k in input.keys():
-                    if diff == 0:
-                        pass
-                    elif diff < 0:
-                        try:
-                            input[k][i][j] = np.append(input[k][i][j], [0] * -diff)
-                        except ValueError:
-                            input[k][i] = list(input[k][i])
-                            input[k][i][j] = np.append(input[k][i][j], [0] * -diff)
-                    else:
-                        input[k][i][j] = np.array(input[k][i][j][: self.max_word_len])
-
-            diff = seq_size - target_seq_size
-            for k in input.keys():
-                if k == "input_ids":
-                    prefix = self.cls
-                else:
-                    prefix = 1
-                input[k][i] = np.array(list(input[k][i]))
-                if diff == 0:
-                    collated_input[k][i] = torch.from_numpy(input[k][i])
-                elif diff < 0:
-                    padding = np.zeros(
-                        (
-                            -diff,
-                            target_word_size - 1,
-                        )
-                    )
-                    padding = np.concatenate(
-                        [np.full((-diff, 1), fill_value=prefix), padding], axis=1
-                    )
-                    collated_input[k][i] = torch.from_numpy(
-                        np.concatenate([input[k][i], padding], axis=0)
-                    )
-                else:
-                    collated_input[k][i] = torch.from_numpy(
-                        self.crop_to_max_size(input[k][i], target_seq_size)
-                    )
-
-        out["net_input"] = collated_input
-        if "label" in samples[0]:
-            out["label"] = torch.stack([s["label"] for s in samples])
-
-        return out
-
+        
     def __getitem__(self, index):
-        fname = str(self.hit_idcs[index]) + ".npy"
+        """
+        Note:
+            You must return a dictionary here or in collator so that the data loader iterator
+            yields samples in the form of python dictionary. For the model inputs, the key should
+            match with the argument of the model's forward() method.
+            Example:
+                class MyDataset(...):
+                    ...
+                    def __getitem__(self, index):
+                        (...)
+                        return {"data_key": data, "label": label}
+                
+                class MyModel(...):
+                    ...
+                    def forward(self, data_key, **kwargs):
+                        (...)
+                
+        """
+        data_idx = 0
+        if self.num_datas[0] <= index:
+            index -= self.num_datas[0]
+            data_idx = 1
+            if self.num_datas[1] <= index:
+                index -= self.num_datas[1]
+                data_idx = 2
+
+        fname = f"{index}.npy"
 
         input_ids = np.load(
-            os.path.join(self.data_dir, "inputs_ids", fname), allow_pickle=True
+            os.path.join(self.data_dir[data_idx], "inputs_ids", fname), allow_pickle=True
         )
         type_ids = np.load(
-            os.path.join(self.data_dir, "type_ids", fname), allow_pickle=True
+            os.path.join(self.data_dir[data_idx], "type_ids", fname), allow_pickle=True
         )
         dpe_ids = np.load(
-            os.path.join(self.data_dir, "dpe_ids", fname), allow_pickle=True
+            os.path.join(self.data_dir[data_idx], "dpe_ids", fname), allow_pickle=True
         )
         label = self.label[index]
 
@@ -218,7 +168,68 @@ class HierarchicalEHRDataset(torch.utils.data.Dataset):
             "input_ids": input_ids,
             "type_ids": type_ids,
             "dpe_ids": dpe_ids,
-            "label": label,
+            "label": label
         }
 
         return out
+
+
+    
+    def __len__(self):
+        return len(self.label)
+    
+    def collator(self, samples):
+        """Merge a list of samples to form a mini-batch.
+        
+        Args:
+            samples (List[dict]): samples to collate
+        
+        Returns:
+            dict: a mini-batch suitable for forwarding with a Model
+        
+        Note:
+            You can use it to make your batch on your own such as outputting padding mask together.
+            Otherwise, you don't need to implement this method.
+        """
+        #if 'dummy' in samples[0]: return 0
+        #input_ids = np.array([s["input_ids"] for s in samples])
+        #type_ids = np.array([s["type_ids"] for s in samples])
+        #dpe_ids = np.array([s["dpe_ids"] for s in samples])
+
+        output = dict()
+
+        for key in ["input_ids", "type_ids", "dpe_ids"]:
+            ids = np.array([s[key] for s in samples])
+
+            # make organized data
+            tmp = [
+                list( 
+                    map(len, input_id.tolist())
+                ) for input_id in ids
+            ]
+            tmp = list(map( lambda x: max(x) if len(x) != 0 else 0, tmp))
+            
+            longest_word_len =  max(tmp)
+            #print(longest_word_len)
+            
+            longest_seq_len = max(list(map(len, ids)))
+            #print(longest_seq_len)
+            
+            word_pad_ids = [
+                list(
+                    map(lambda x: x + [0] * (longest_word_len - len(x)), input_id.tolist())
+                ) for input_id in ids
+            ]
+
+            seq_pad_ids = list(
+                map(lambda x: x + [[0 for _ in range(longest_word_len)] for __ in range(longest_seq_len - len(x))] , word_pad_ids)
+            )
+
+            ids = torch.tensor(np.array(seq_pad_ids))
+            
+            output[key] = ids
+            
+        if "label" in samples[0]:
+            output["label"] = torch.stack([s["label"] for s in samples])
+        return output
+        

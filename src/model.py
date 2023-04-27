@@ -1,56 +1,135 @@
-import logging
+from typing import Dict
+
+from . import BaseModel, register_model
+
 import torch
 import torch.nn as nn
 from torch.nn import TransformerEncoder, TransformerEncoderLayer
-import math
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
+import math
+# code from 
+# https://github.com/starmpcc/UniFL/blob/4c66146c77d249241f5ff02fef63ac193287f710/src/model.py
 
-logger = logging.getLogger(__name__)
+# args 대신에 cfg로 설정 다 옮김
 
+# setting
+class cfg:
+    # cfg 바꿀 경우에는 dataset.py에 있는 config도 변경해주어야 함.
 
-class UniHPF(nn.Module):
-    def __init__(self, args):
+    dpe = False # use or not
+    type_token = True # use or not
+    pos_enc = True # use or not
+
+    embed_dim = 128
+    pred_dim = 128
+    output_dim = 52
+
+    dropout = 0.2
+    n_layers = 4
+    n_heads = 4
+    max_word_len = 256
+    max_seq_len = 256
+    pred_pooling = "cls" # "cls" "mean" 중 선택
+
+    type_index_size = 14
+    dpe_index_size = 25 # 현재 구현 안한상태
+
+    eventencoder = "transformer"
+
+@register_model("20233477_model")
+class MyModel20233477(BaseModel):
+    """
+    TODO:
+        create your own model here to handle heterogeneous EHR formats.
+        Rename the class name and the file name with your student number.
+    
+    Example:
+    - 20218078_model.py
+        @register_model("20218078_model")
+        class MyModel20218078(BaseModel):
+            (...)
+    """
+    
+    def __init__(
+        self,
+        # ...,
+        **kwargs,
+    ):
         super().__init__()
-        self.args = args
 
-        self.input2emb_model = DescEmb(args)
-        if args.eventencoder == "transformer":
-            self.eventencoder_model = TransformerEventEncoder(args)
-        elif args.eventencoder == "rnn":
-            self.eventencoder_model = RNNEventEncoder(args)
+    
+        self.args = cfg
+
+        self.input2emb_model = DescEmb()
+        if cfg.eventencoder == "transformer":
+            self.eventencoder_model = TransformerEventEncoder()
+        elif cfg.eventencoder == "rnn":
+            self.eventencoder_model = RNNEventEncoder()
         else:
             raise NotImplementedError
-        self.pred_model = Aggregator(args)
-        self.emb2out_model = PredOutPutLayer(args)
+        self.pred_model = Aggregator()
+        self.emb2out_model = PredOutPutLayer()
 
-    def get_logits(self, net_output):
-        return net_output["pred_output"].float()
 
+    
+    def get_logits(cls, net_output):
+        """get logits from the net's output.
+        
+        Note:
+            Assure that get_logits(...) should return the logits in the shape of (batch, 52)
+        """
+        return net_output["pred_output"].nan_to_num(0) # too many nan
+    
     def get_targets(self, sample):
-        return sample["label"].float()
+        """get targets from the sample
+        
+        Note:
+            Assure that get_targets(...) should return the ground truth labels
+                in the shape of (batch, 28)
+        """
+        return sample["label"]
 
-    def forward(self, **kwargs):
+    def forward(
+        self,
+        # ...,
+        **kwargs
+    ):
+        """
+        Note:
+            the key should be corresponded with the output dictionary of the dataset you implemented.
+        
+        Example:
+            class MyDataset(...):
+                ...
+                def __getitem__(self, index):
+                    (...)
+                    return {"data_key": data, "label": label}
+            
+            class MyModel(...):
+                ...
+                def forward(self, data_key, **kwargs):
+                    (...)
+        """
         all_codes_embs = self.input2emb_model(**kwargs)  # (B, S, E)
         events = self.eventencoder_model(all_codes_embs, **kwargs)
         x = self.pred_model(events, **kwargs)
         net_output = self.emb2out_model(x, **kwargs)
-
         return net_output
 
 
 class DescEmb(nn.Module):
-    def __init__(self, args, embed_dim=None):
+    def __init__(self, embed_dim=None):
         super().__init__()
 
-        self.args = args
+        self.args = cfg
 
         self.input_index_size = 28119  # 28996 # bio clinical bert vocab
-        self.type_index_size = 14  # mimiciii + eicu + mimiciv
-        self.dpe_index_size = 25
+        self.type_index_size = cfg.type_index_size  # mimic3 + eicu + mimic4
+        self.dpe_index_size = cfg.dpe_index_size
 
-        self.dpe = args.dpe
-        self.token_type = args.type_token
-        self.pos_enc = args.pos_enc
+        self.dpe = cfg.dpe
+        self.token_type = cfg.type_token
+        self.pos_enc = cfg.pos_enc
 
         if embed_dim:
             self.args.embed_dim = embed_dim
@@ -71,15 +150,15 @@ class DescEmb(nn.Module):
             else None
         )
 
-        max_len = args.max_word_len
+        max_len = cfg.max_word_len
 
         self.pos_encoder = (
-            PositionalEncoding(args.embed_dim, args.dropout, max_len)
+            PositionalEncoding(cfg.embed_dim, cfg.dropout, max_len)
             if self.pos_enc
             else None
         )
 
-        self.layer_norm = nn.LayerNorm(args.embed_dim, eps=1e-12)
+        self.layer_norm = nn.LayerNorm(cfg.embed_dim, eps=1e-12)
 
     def forward(self, input_ids, type_ids, dpe_ids, **kwargs):
         B, S = input_ids.shape[0], input_ids.shape[1]
@@ -100,24 +179,25 @@ class DescEmb(nn.Module):
         return x
 
 
+
 class RNNEventEncoder(nn.Module):
-    def __init__(self, args):
+    def __init__(self):
         super().__init__()
-        self.args = args
-        self.embed_dim = args.embed_dim
-        self.hidden_dim = args.pred_dim
-        self.pred_dim = args.pred_dim
+        self.args = cfg
+        self.embed_dim = cfg.embed_dim
+        self.hidden_dim = cfg.pred_dim
+        self.pred_dim = cfg.pred_dim
 
         self.model = nn.GRU(
             input_size=self.embed_dim,
             hidden_size=self.pred_dim,
-            num_layers=args.n_layers // 2,
-            dropout=args.dropout,
+            num_layers=cfg.n_layers // 2,
+            dropout=cfg.dropout,
             batch_first=True,
             bidirectional=True,
         )
 
-        self.max_word_len = args.max_word_len
+        self.max_word_len = cfg.max_word_len
 
         self.post_encode_proj = nn.Linear(self.hidden_dim * 2, self.pred_dim)
 
@@ -143,24 +223,24 @@ class RNNEventEncoder(nn.Module):
 
 
 class TransformerEventEncoder(nn.Module):
-    def __init__(self, args):
+    def __init__(self):
         super().__init__()
-        self.args = args
-        self.pred_dim = args.pred_dim
+        self.args = cfg
+        self.pred_dim = cfg.pred_dim
 
         encoder_layers = TransformerEncoderLayer(
-            args.pred_dim,
-            args.n_heads,
-            args.pred_dim * 4,
-            args.dropout,
+            cfg.pred_dim,
+            cfg.n_heads,
+            cfg.pred_dim * 4,
+            cfg.dropout,
             batch_first=True,
         )
 
         self.transformer_encoder = TransformerEncoder(
-            encoder_layers, args.n_layers // 2
+            encoder_layers, cfg.n_layers // 2
         )
 
-        self.post_encode_proj = nn.Linear(args.embed_dim, self.pred_dim)
+        self.post_encode_proj = nn.Linear(cfg.embed_dim, cfg.pred_dim)
 
     def forward(self, all_codes_embs, input_ids, **kwargs):
 
@@ -169,7 +249,7 @@ class TransformerEventEncoder(nn.Module):
             input_ids.view(B * S, -1).eq(0).to(all_codes_embs.device)
         )  # (B, S, W) -> (B*S, W)
         encoder_output = self.transformer_encoder(
-            all_codes_embs, src_key_padding_mask=src_pad_mask
+            all_codes_embs, # src_key_padding_mask=src_pad_mask
         )
         net_output = self.post_encode_proj(encoder_output[:, 0, :]).view(
             B, -1, self.pred_dim
@@ -179,26 +259,26 @@ class TransformerEventEncoder(nn.Module):
 
 
 class Aggregator(nn.Module):
-    def __init__(self, args):
+    def __init__(self):
         super().__init__()
 
-        self.args = args
+        self.args = cfg
         encoder_layers = TransformerEncoderLayer(
-            args.pred_dim,
-            args.n_heads,
-            args.pred_dim * 4,
-            args.dropout,
+            cfg.pred_dim,
+            cfg.n_heads,
+            cfg.pred_dim * 4,
+            cfg.dropout,
             batch_first=True,
         )
 
         self.transformer_encoder = TransformerEncoder(
-            encoder_layers, args.n_layers // 2
+            encoder_layers, cfg.n_layers // 2
         )
         self.pos_encoder = PositionalEncoding(
-            args.pred_dim, args.dropout, args.max_seq_len
+            cfg.pred_dim, cfg.dropout, cfg.max_seq_len
         )
 
-        self.layer_norm = nn.LayerNorm(args.embed_dim, eps=1e-12)
+        self.layer_norm = nn.LayerNorm(cfg.embed_dim, eps=1e-12)
 
     def forward(self, events, input_ids, **kwargs):
         # input_ids: (B, S) (B x S, W ) -> (Bx s, W) -> (B, s, W)
@@ -213,19 +293,16 @@ class Aggregator(nn.Module):
                     If a ByteTensor is provided, 
                         the non-zero positions are not allowed to attend
                         while the zero positions will be unchanged. 
-
                     If a BoolTensor is provided, 
                         positions with ``True`` are not allowed to attend 
                         while ``False`` values will be unchanged. 
-
                     If a FloatTensor is provided, it will be added to the attention weight. 
                     https://pytorch.org/docs/sfeature/generated/torch.nn.Transformer.html
-
         """
         if self.pos_encoder is not None:
             events = self.layer_norm(self.pos_encoder(events))
         encoder_output = self.transformer_encoder(
-            events, mask=src_mask, src_key_padding_mask=src_pad_mask
+            events #, mask=src_mask, src_key_padding_mask=src_pad_mask
         )
 
         return encoder_output
@@ -255,13 +332,13 @@ class PositionalEncoding(nn.Module):
 
 
 class PredOutPutLayer(nn.Module):
-    def __init__(self, args):
+    def __init__(self):
         super().__init__()
-        self.args = args
+        self.args = cfg
 
         self.final_proj = nn.Linear(
-            args.pred_dim,
-            52
+            cfg.pred_dim,
+            cfg.output_dim
         )
 
     def forward(self, x, input_ids, **kwargs):
@@ -276,3 +353,7 @@ class PredOutPutLayer(nn.Module):
         output = self.final_proj(x)  # B, E -> B, 1
         output = output.squeeze()
         return {"pred_output": output}
+    
+if __name__ == "__main__":
+    print("Hello")
+    net = MyModel20233477()
