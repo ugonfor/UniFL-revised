@@ -13,13 +13,16 @@ class PredLoss:
             return self.binary_class(output, target)
         elif self.args.pred_target in ["dx"]:
             return self.multi_label_multi_class(output, target)
-
+        elif self.args.pred_target in ["labels"]:
+            return self.multi_label_multi_class(output, target)
+            
     def binary_class(self, output, target):
         return self.BCE_loss(
             output["pred_output"], target.squeeze(dim=-1).to(output["pred_output"].device)
         )
 
     def multi_label_multi_class(self, output, target):
+        breakpoint()
         return self.BCE_loss(
             output["pred_output"].view(-1),
             target.view(-1).to(output["pred_output"].device),

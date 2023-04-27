@@ -2,6 +2,7 @@
 *.csv
 *.pkl
 *.npy
+*.tar.gz
 train_dataset
 preprocessed_dataset
 

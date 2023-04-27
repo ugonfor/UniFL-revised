@@ -9,6 +9,25 @@ from sklearn.preprocessing import MultiLabelBinarizer
 
 logger = logging.getLogger(__name__)
 
+from typing import List
+def label2target(label: List):
+    assert len(label) == 28
+    levels = [1 for _ in range(22)]
+    levels += [6,6,5,5,5,3]
+    
+    target = []
+    for i in range(len(label)):
+        if label[i] == -1:
+            target += [0.5 for _ in range(levels[i])]
+        else:
+            if levels[i] == 1:
+                target += [label[i]]
+            else:
+                tmp = [0 for _ in range(levels[i])]
+                tmp[label[i]] = 1
+                target += tmp
+    assert len(target) == 52
+    return target
 
 class HierarchicalEHRDataset(torch.utils.data.Dataset):
     def __init__(
@@ -48,14 +67,12 @@ class HierarchicalEHRDataset(torch.utils.data.Dataset):
             os.path.join(self.base_path, "label", pred_target + ".npy"),
             allow_pickle=True,
         )
-        if self.pred_target == "dx":
-            mlb = MultiLabelBinarizer(
-                classes=[str(i) for i in range(1, 19)],
-            )
-            label = mlb.fit_transform(label)
+        
         label = np.array( 
-            list( map(eval, label.tolist()) )
+            list( map(lambda x: label2target(eval(x)), label.tolist()) )
             )
+        
+        
         self.label = torch.tensor(label, dtype=torch.long)
 
         self.hit_idcs = self.get_fold_indices()

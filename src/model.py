@@ -24,7 +24,7 @@ class UniHPF(nn.Module):
         self.emb2out_model = PredOutPutLayer(args)
 
     def get_logits(self, net_output):
-        return net_output.float()
+        return net_output["pred_output"].float()
 
     def get_targets(self, sample):
         return sample["label"].float()
@@ -261,7 +261,7 @@ class PredOutPutLayer(nn.Module):
 
         self.final_proj = nn.Linear(
             args.pred_dim,
-            18 if args.pred_target == "dx" else 1,
+            52
         )
 
     def forward(self, x, input_ids, **kwargs):
