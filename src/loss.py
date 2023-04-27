@@ -22,7 +22,6 @@ class PredLoss:
         )
 
     def multi_label_multi_class(self, output, target):
-        breakpoint()
         return self.BCE_loss(
             output["pred_output"].view(-1),
             target.view(-1).to(output["pred_output"].device),
