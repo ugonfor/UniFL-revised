@@ -8,6 +8,7 @@ from collections import Counter
 import argparse
 
 from transformers import AutoTokenizer
+import swifter
 import argparse
 
 warnings.filterwarnings("ignore")
@@ -982,6 +983,7 @@ def filter_ID_TIME_NULL(src, config, rawdata_path, inputdata_path, sample=False)
         icu = pd.read_pickle(os.path.join(inputdata_path, f"{src}_cohort.pkl"))
         if src == "mimiciv":
             columns_upper(icu)
+            icu.rename(columns={"ICUSTAY_ID":"STAY_ID"}, inplace=True, errors='ignore')
         
         # 3.5. If there is No coulmns, config["ID"][src]...
         icu.rename(columns={config["ID"][src]: "ID"}, inplace=True)
@@ -1084,14 +1086,14 @@ def descemb_tokenize(df, table_name):
     ]
     table_token = tokenizer.encode(table_name)[1:-1]
 
-    df[target_cols] = df[target_cols].applymap(
+    df[target_cols] = df[target_cols].swifter.applymap(
         lambda x: tokenizer.encode(round_digits(x))[1:-1] if x != " " else []
     )
-    df[[col + "_dpe" for col in target_cols]] = df[target_cols].applymap(
+    df[[col + "_dpe" for col in target_cols]] = df[target_cols].swifter.applymap(
         lambda x: make_dpe(x, number_token_list) if x != [] else []
     )
 
-    df["event"] = df.apply(
+    df["event"] = df.swifter.apply(
         lambda x: sum(
             [
                 tokenizer.encode(col)[1:-1] + x[col]
@@ -1102,7 +1104,7 @@ def descemb_tokenize(df, table_name):
         ),
         axis=1,
     )
-    df["type"] = df.apply(
+    df["type"] = df.swifter.apply(
         lambda x: sum(
             [
                 [6] * len(tokenizer.encode(col)[1:-1]) + [7] * len(x[col])
@@ -1113,7 +1115,7 @@ def descemb_tokenize(df, table_name):
         ),
         axis=1,
     )
-    df["dpe"] = df.apply(
+    df["dpe"] = df.swifter.apply(
         lambda x: sum(
             [
                 [1] * len(tokenizer.encode(col)[1:-1]) + x[col + "_dpe"]
@@ -1293,8 +1295,6 @@ import numpy as np
 import warnings
 import more_itertools as mit
 from transformers import AutoTokenizer
-from fold_split import stratified_split, random_split
-from preprocess_utils import *
 import json
 import argparse
 from typing import List
@@ -1910,6 +1910,7 @@ def main(args):
 
     root_dir = args.root
     dest_dir = args.dest
+    os.makedirs(dest_dir, exist_ok=True)
 
     args = my_args(root_dir, dest_dir)
     
